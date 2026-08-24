@@ -57,9 +57,9 @@ The app contains:
 │   │ English                 ▼  │   │
 │   └────────────────────────────┘   │
 │                                    │
-│   ┌──────────┐  ┌──────────┐      │
-│   │   PLAY   │  │   STOP   │      │
-│   └──────────┘  └──────────┘      │
+│   ┌──────────┐  ┌──────────┐       │
+│   │   PLAY   │  │   STOP   │       │
+│   └──────────┘  └──────────┘       │
 │                                    │
 │   ┌────────────────────────────┐   │
 │   │         CLEAR TEXT         │   │
@@ -285,15 +285,3 @@ Cantonese is selected.
 -   Save synthesized speech as an audio file
 -   Highlight words while they are being spoken
 -   Add more languages
-
-## License
-
-This project is intended for learning and educational use.
-
-You can add a license such as the MIT License if you plan to publish or
-distribute the project.
-
-## Author
-
-Created as a simple Android Text-to-Speech learning project using Kotlin
-and the Android `TextToSpeech` API.
