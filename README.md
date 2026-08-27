@@ -18,6 +18,8 @@ clear the input.
     -   Cantonese Chinese
 -   Play spoken text
 -   Stop speech playback
+-   Export the synthesized speech as a real MP3 file
+-   Choose the MP3 save location with Android's system file picker
 -   Clear the text box
 -   Automatically avoids the Android status bar and front-camera/display
     cutout
@@ -62,6 +64,10 @@ The app contains:
 │   └──────────┘  └──────────┘       │
 │                                    │
 │   ┌────────────────────────────┐   │
+│   │       EXPORT TO MP3        │   │
+│   └────────────────────────────┘   │
+│                                    │
+│   ┌────────────────────────────┐   │
 │   │         CLEAR TEXT         │   │
 │   └────────────────────────────┘   │
 │                                    │
@@ -74,6 +80,9 @@ The app contains:
 -   Android Studio
 -   Android XML layouts
 -   Android `TextToSpeech` API
+-   Android Storage Access Framework
+-   Android LAME MP3 encoder (`com.github.axet:lame:1.0.9`)
+    -   Uses the native Android/JNI build of libmp3lame. Review the LGPL dependency license when distributing the app.
 -   AndroidX Window Insets
 
 ## Requirements
@@ -120,10 +129,11 @@ Select your device and wait for the application to launch.
 
 1.  Enter text into the text box.
 2.  Select a language from the dropdown.
-3.  Press **Play**.
-4.  Android will read the text aloud.
-5.  Press **Stop** to stop speaking.
-6.  Press **Clear Text** to stop playback and clear the text box.
+3.  Press **Play** to hear the speech.
+4.  Press **Stop** to stop speaking.
+5.  Press **Export to MP3** to synthesize the current text without playback.
+6.  Choose a filename and save location in Android's file picker.
+7.  Press **Clear Text** to stop playback and clear the text box.
 
 ## Example Text
 
@@ -200,6 +210,16 @@ The Stop button uses:
 textToSpeech.stop()
 ```
 
+## Exporting MP3 Audio
+
+The **Export to MP3** button opens Android's system save dialog. The app then
+uses `synthesizeToFile(...)` together with `UtteranceProgressListener` to
+capture the PCM audio produced by the current TTS engine. The PCM stream is
+encoded to MP3 with Android's JNI build of libmp3lame and written to the user-selected document URI. The exporter also replaces the initial placeholder VBR frame with the final LAME/Xing header before saving, which keeps the resulting MP3 playable in standard audio players.
+
+Because the file location is selected through Android's Storage Access
+Framework, the app does not need broad storage permissions.
+
 ## Clearing Text
 
 The Clear Text button stops any current speech and clears the text box:
@@ -254,7 +274,8 @@ app/
 │   └── AndroidManifest.xml
 ├── kotlin+java/
 │   └── com.example.texttospeechapp/
-│       └── MainActivity.kt
+│       ├── MainActivity.kt
+│       └── Mp3Encoder.kt
 └── res/
     └── layout/
         └── activity_main.xml
@@ -282,6 +303,5 @@ Cantonese is selected.
 -   Save recently entered text
 -   Add dark mode
 -   Import text files
--   Save synthesized speech as an audio file
 -   Highlight words while they are being spoken
 -   Add more languages

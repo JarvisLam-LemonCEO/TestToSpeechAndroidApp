@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.axet:lame:1.0.9")
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
