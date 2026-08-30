@@ -45,11 +45,10 @@ screenshots/
 
 Then display them in this README with:
 
-```markdown
 ![Main Screen](screenshots/main-screen.png)
 ![Language Selection](screenshots/language-selection.png)
 ![Voice Selection](screenshots/voice-selection.png)
-```
+
 
 Example layout:
 
