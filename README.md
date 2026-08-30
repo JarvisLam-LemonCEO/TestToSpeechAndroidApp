@@ -37,18 +37,12 @@ The app also remembers the user's last selected language and restores it automat
 
 ## Screenshots
 
-Add your screenshots to a folder such as:
-
-```text
-screenshots/
-```
 
 Then display them in this README with:
 | Main Screen | Language Selection | Voice Selection |
 |---|---|---|
 | <img src="screenshots/main-screen.png" width="250"> | <img src="screenshots/language-selection.png" width="250"> | <img src="screenshots/voice-selection.png" width="250"> |
 | `main-screen.png` | `language-selection.png` | `voice-selection.png` |
-
 ---
 
 ## How It Works
