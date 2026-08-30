@@ -609,7 +609,7 @@ Possible future improvements:
 ---
 
 ## Version
-### Version 1.1.3
+### v1.1.3
 
 - Keeps the Android soft keyboard hidden when the app first opens.
 - Uses the activity soft-input setting only, avoiding startup focus manipulation.
