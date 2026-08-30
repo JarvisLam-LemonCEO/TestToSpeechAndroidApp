@@ -44,16 +44,9 @@ screenshots/
 ```
 
 Then display them in this README with:
-
-![Main Screen](screenshots/main-screen.png)
-![Language Selection](screenshots/language-selection.png)
-![Voice Selection](screenshots/voice-selection.png)
-
-
-Example layout:
-
 | Main Screen | Language Selection | Voice Selection |
 |---|---|---|
+| <img src="screenshots/main-screen.png" width="250"> | <img src="screenshots/language-selection.png" width="250"> | <img src="screenshots/voice-selection.png" width="250"> |
 | `main-screen.png` | `language-selection.png` | `voice-selection.png` |
 
 ---
