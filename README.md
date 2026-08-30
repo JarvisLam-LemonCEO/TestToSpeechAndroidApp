@@ -2,7 +2,7 @@
 
 ![Android](https://img.shields.io/badge/Android-24%2B-brightgreen)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Android-blueviolet)
-![Version](https://img.shields.io/badge/version-1.1.1-blue)
+![Version](https://img.shields.io/badge/version-1.1.2-blue)
 ![License](https://img.shields.io/badge/license-See%20Dependencies-lightgrey)
 
 A lightweight Android Text-to-Speech application built with Kotlin and Android's native `TextToSpeech` API.
