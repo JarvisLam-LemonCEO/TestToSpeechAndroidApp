@@ -1,307 +1,82 @@
-# Android Text to Speech App
+# Android Text to Speech App - Enhanced
 
-A simple Android application that converts typed text into speech using
-Android's built-in `TextToSpeech` API.
+An Android text-to-speech app that discovers the languages and voices exposed by the Text-to-Speech engine installed on the device.
 
-Users can type text, choose a language, press **Play** to hear it spoken
-aloud, press **Stop** to stop playback, and press **Clear Text** to
-clear the input.
+## Enhanced Features
 
-## Features
+- Dynamically lists installed/supported TTS languages instead of a four-language hard-coded list.
+- Remembers the last language the user selected and restores it the next time the app opens.
+- Does not show language-discovery or voice-install notification popups during normal startup.
+- Displays locale tags such as `en-US`, `ja-JP`, and `zh-HK` next to language names.
+- Provides a voice selector for the currently selected language.
+- Includes a safe `Default voice for this language` fallback.
+- Shows whether a named voice is offline or network-based.
+- Shows the Android TTS quality rating for named voices.
+- Adds adjustable pitch from 0.50x to 2.00x.
+- Adds adjustable speech speed from 0.50x to 2.00x.
+- Applies the selected language, voice, pitch, and speed to normal playback.
+- Applies the same settings when exporting MP3 audio.
+- Keeps the existing Play, Stop, Clear Text, and MP3 export workflow.
+- Uses a scrollable layout so the extra voice controls fit on smaller screens.
 
--   Type text into a multi-line text box
--   Convert text to speech
--   Choose between multiple languages:
-    -   English
-    -   Japanese
-    -   Mandarin Chinese
-    -   Cantonese Chinese
--   Play spoken text
--   Stop speech playback
--   Export the synthesized speech as a real MP3 file
--   Choose the MP3 save location with Android's system file picker
--   Clear the text box
--   Automatically avoids the Android status bar and front-camera/display
-    cutout
--   Checks whether the selected TTS language is supported on the device
+## Important Language and Voice Behavior
 
-## Supported Languages
+The app does not pretend that every Android phone has every language. It asks the active Android TTS engine what languages and voices are actually available and displays those choices.
 
-  Language            Android Locale
-  ------------------- -----------------------------
-  English             `Locale.US`
-  Japanese            `Locale.JAPAN`
-  Mandarin Chinese    `Locale.SIMPLIFIED_CHINESE`
-  Cantonese Chinese   `Locale("zh", "HK")`
+The result therefore depends on:
 
-> Cantonese support depends on the Text-to-Speech engine and voice data
-> installed on the Android device.
+- The TTS engine installed on the device.
+- Voice/language packs installed for that engine.
+- Whether a particular voice requires a network connection.
 
-## App Layout
+Different engines can expose different numbers of voices for the same language.
 
-The app contains:
-
-``` text
-┌────────────────────────────────────┐
-│            Status Bar              │
-├────────────────────────────────────┤
-│                                    │
-│   Text to Speech                   │
-│                                    │
-│   ┌────────────────────────────┐   │
-│   │ Type something...          │   │
-│   │                            │   │
-│   │                            │   │
-│   └────────────────────────────┘   │
-│                                    │
-│   Language                         │
-│   ┌────────────────────────────┐   │
-│   │ English                 ▼  │   │
-│   └────────────────────────────┘   │
-│                                    │
-│   ┌──────────┐  ┌──────────┐       │
-│   │   PLAY   │  │   STOP   │       │
-│   └──────────┘  └──────────┘       │
-│                                    │
-│   ┌────────────────────────────┐   │
-│   │       EXPORT TO MP3        │   │
-│   └────────────────────────────┘   │
-│                                    │
-│   ┌────────────────────────────┐   │
-│   │         CLEAR TEXT         │   │
-│   └────────────────────────────┘   │
-│                                    │
-└────────────────────────────────────┘
-```
-
-## Technologies Used
-
--   Kotlin
--   Android Studio
--   Android XML layouts
--   Android `TextToSpeech` API
--   Android Storage Access Framework
--   Android LAME MP3 encoder (`com.github.axet:lame:1.0.9`)
-    -   Uses the native Android/JNI build of libmp3lame. Review the LGPL dependency license when distributing the app.
--   AndroidX Window Insets
+Android's standard `Voice` API does not provide a universal male/female/emotion property. The app exposes the actual engine voice names plus quality/network information and allows pitch and speed adjustment.
 
 ## Requirements
 
--   Android Studio
--   Kotlin
--   Android device or emulator
--   Android Text-to-Speech engine installed
--   Appropriate language voice data installed on the device
+- Android 7.0 (API 24) or later.
+- An Android Text-to-Speech engine.
+- Language/voice data installed for the languages you want to use.
+- Android Studio with access to the repositories required by this project.
 
-## Getting Started
+## Using the App
 
-### 1. Clone the repository
+1. Enter text.
+2. Select a language. The app remembers this choice for the next launch.
+3. Select the default voice or a named voice for that locale.
+4. Adjust Pitch and Speed if desired.
+5. Press **Play** to listen.
+6. Press **Stop** to stop speech.
+7. Press **Export to MP3** to save audio with the same language, voice, pitch, and speed settings.
+8. Press **Clear Text** to clear the input.
 
-``` bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
+## Main Implementation
+
+The dynamic TTS functionality is implemented in:
+
+```text
+app/src/main/java/com/example/texttospeechapp/MainActivity.kt
 ```
 
-Then open the project folder in Android Studio.
+The enhanced interface is in:
 
-### 2. Build the project
+```text
+app/src/main/res/layout/activity_main.xml
+```
 
-Allow Android Studio to finish syncing Gradle dependencies.
+MP3 encoding remains in:
 
-Then select:
+```text
+app/src/main/java/com/example/texttospeechapp/Mp3Encoder.kt
+```
 
-``` text
+## Build
+
+Open the project in Android Studio, allow Gradle sync to complete, and use:
+
+```text
 Build > Make Project
 ```
 
-### 3. Run the app
-
-Connect an Android device or start an emulator.
-
-Press:
-
-``` text
-Run ▶
-```
-
-Select your device and wait for the application to launch.
-
-## How to Use
-
-1.  Enter text into the text box.
-2.  Select a language from the dropdown.
-3.  Press **Play** to hear the speech.
-4.  Press **Stop** to stop speaking.
-5.  Press **Export to MP3** to synthesize the current text without playback.
-6.  Choose a filename and save location in Android's file picker.
-7.  Press **Clear Text** to stop playback and clear the text box.
-
-## Example Text
-
-### English
-
-``` text
-Hello, how are you today?
-```
-
-### Japanese
-
-``` text
-こんにちは。元気ですか？
-```
-
-### Mandarin Chinese
-
-``` text
-你好，你今天好嗎？
-```
-
-### Cantonese Chinese
-
-``` text
-你好，你今日好嗎？
-```
-
-## Text-to-Speech Language Selection
-
-The app stores each displayed language together with its Android
-`Locale`:
-
-``` kotlin
-private val languages = listOf(
-    "English" to Locale.US,
-    "Japanese" to Locale.JAPAN,
-    "Mandarin Chinese" to Locale.SIMPLIFIED_CHINESE,
-    "Cantonese Chinese" to Locale("zh", "HK")
-)
-```
-
-When the user presses **Play**, the app gets the selected locale and
-checks whether it is available:
-
-``` kotlin
-val availability =
-    textToSpeech.isLanguageAvailable(locale)
-```
-
-If the language is unavailable, the app displays a message instead of
-attempting to speak.
-
-## Playing Speech
-
-Speech is started using:
-
-``` kotlin
-textToSpeech.speak(
-    text,
-    TextToSpeech.QUEUE_FLUSH,
-    null,
-    "speechId"
-)
-```
-
-`QUEUE_FLUSH` clears any previous speech and immediately starts reading
-the current text.
-
-## Stopping Speech
-
-The Stop button uses:
-
-``` kotlin
-textToSpeech.stop()
-```
-
-## Exporting MP3 Audio
-
-The **Export to MP3** button opens Android's system save dialog. The app then
-uses `synthesizeToFile(...)` together with `UtteranceProgressListener` to
-capture the PCM audio produced by the current TTS engine. The PCM stream is
-encoded to MP3 with Android's JNI build of libmp3lame and written to the user-selected document URI. The exporter also replaces the initial placeholder VBR frame with the final LAME/Xing header before saving, which keeps the resulting MP3 playable in standard audio players.
-
-Because the file location is selected through Android's Storage Access
-Framework, the app does not need broad storage permissions.
-
-## Clearing Text
-
-The Clear Text button stops any current speech and clears the text box:
-
-``` kotlin
-clearButton.setOnClickListener {
-
-    if (::textToSpeech.isInitialized) {
-        textToSpeech.stop()
-    }
-
-    editText.text.clear()
-    editText.requestFocus()
-}
-```
-
-## Status Bar and Display Cutout Support
-
-The app uses Android Window Insets so that content does not overlap the
-status bar, navigation bar, notch, or front-camera cutout.
-
-``` kotlin
-val insets = windowInsets.getInsets(
-    WindowInsetsCompat.Type.systemBars() or
-        WindowInsetsCompat.Type.displayCutout()
-)
-```
-
-This makes the UI work better across different Android devices and
-screen designs.
-
-## Android Manifest
-
-The application declares the Text-to-Speech service query:
-
-``` xml
-<queries>
-    <intent>
-        <action android:name="android.intent.action.TTS_SERVICE" />
-    </intent>
-</queries>
-```
-
-No microphone permission is required because the app does not record
-audio.
-
-## Project Structure
-
-``` text
-app/
-├── manifests/
-│   └── AndroidManifest.xml
-├── kotlin+java/
-│   └── com.example.texttospeechapp/
-│       ├── MainActivity.kt
-│       └── Mp3Encoder.kt
-└── res/
-    └── layout/
-        └── activity_main.xml
-```
-
-## Known Limitations
-
-Language availability depends on the Text-to-Speech engine installed on
-the Android device.
-
-In particular, Cantonese may not be available on every device. A device
-may need additional language or voice data installed before Cantonese
-speech works.
-
-The selected language also determines pronunciation. For example,
-Chinese characters can be pronounced differently when Mandarin or
-Cantonese is selected.
-
-## Possible Future Improvements
-
--   Add speech speed controls
--   Add pitch controls
--   Add a voice selector
--   Show only voices installed on the device
--   Save recently entered text
--   Add dark mode
--   Import text files
--   Highlight words while they are being spoken
--   Add more languages
+or run `./gradlew assembleDebug` in an environment with Gradle/Maven repository access.

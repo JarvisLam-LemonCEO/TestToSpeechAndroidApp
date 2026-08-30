@@ -5,11 +5,15 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -17,6 +21,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.text.Collator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,6 +33,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var editText: EditText
     private lateinit var languageSpinner: Spinner
+    private lateinit var voiceSpinner: Spinner
+    private lateinit var voiceInfoText: TextView
+    private lateinit var pitchSeekBar: SeekBar
+    private lateinit var pitchValueText: TextView
+    private lateinit var rateSeekBar: SeekBar
+    private lateinit var rateValueText: TextView
     private lateinit var playButton: Button
     private lateinit var stopButton: Button
     private lateinit var exportButton: Button
@@ -35,17 +46,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private var ttsReady = false
     private var pendingExportText: String? = null
+    private var suppressSpinnerCallbacks = false
+
+    private var languages: List<LanguageOption> = emptyList()
+    private var voices: List<VoiceOption> = emptyList()
 
     private val exportLock = Any()
     private var exportCapture: ExportCapture? = null
     private val mp3Executor = Executors.newSingleThreadExecutor()
-
-    private val languages = listOf(
-        "English" to Locale.US,
-        "Japanese" to Locale.JAPAN,
-        "Mandarin Chinese" to Locale.SIMPLIFIED_CHINESE,
-        "Cantonese Chinese" to Locale("zh", "HK")
-    )
 
     private val createMp3Document = registerForActivityResult(
         ActivityResultContracts.CreateDocument("audio/mpeg")
@@ -73,27 +81,39 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            val normalPadding = dpToPx(24)
+            val horizontalPadding = dpToPx(24)
+            val verticalPadding = dpToPx(16)
             view.setPadding(
-                insets.left + normalPadding,
-                insets.top + normalPadding,
-                insets.right + normalPadding,
-                insets.bottom + normalPadding
+                insets.left + horizontalPadding,
+                insets.top + verticalPadding,
+                insets.right + horizontalPadding,
+                insets.bottom + verticalPadding
             )
             windowInsets
         }
 
         editText = findViewById(R.id.editText)
         languageSpinner = findViewById(R.id.languageSpinner)
+        voiceSpinner = findViewById(R.id.voiceSpinner)
+        voiceInfoText = findViewById(R.id.voiceInfoText)
+        pitchSeekBar = findViewById(R.id.pitchSeekBar)
+        pitchValueText = findViewById(R.id.pitchValueText)
+        rateSeekBar = findViewById(R.id.rateSeekBar)
+        rateValueText = findViewById(R.id.rateValueText)
         playButton = findViewById(R.id.playButton)
         stopButton = findViewById(R.id.stopButton)
         exportButton = findViewById(R.id.exportButton)
         clearButton = findViewById(R.id.clearButton)
 
-        setupLanguageSpinner()
+        setupLoadingSpinners()
+        setupPitchAndRateControls()
+        setupSpinnerListeners()
 
         playButton.isEnabled = false
         exportButton.isEnabled = false
+        voiceSpinner.isEnabled = false
+        languageSpinner.isEnabled = false
+
         textToSpeech = TextToSpeech(this, this)
 
         playButton.setOnClickListener { speakText() }
@@ -109,27 +129,76 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun setupLanguageSpinner() {
-        val adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_item,
-            languages.map { it.first }
-        )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        languageSpinner.adapter = adapter
+    private fun setupLoadingSpinners() {
+        setSpinnerItems(languageSpinner, listOf("Loading languages..."))
+        setSpinnerItems(voiceSpinner, listOf("Loading voices..."))
+        voiceInfoText.text = "Voice details will appear here."
+    }
+
+    private fun setupSpinnerListeners() {
+        languageSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (suppressSpinnerCallbacks || !ttsReady || position !in languages.indices) return
+                val selectedLocale = languages[position].locale
+                saveSelectedLanguage(selectedLocale)
+                populateVoicesForLanguage(selectedLocale)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
+        voiceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (suppressSpinnerCallbacks || position !in voices.indices) return
+                updateVoiceInfo(voices[position])
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
+    private fun setupPitchAndRateControls() {
+        pitchSeekBar.max = CONTROL_RANGE
+        pitchSeekBar.progress = DEFAULT_CONTROL_PROGRESS
+        rateSeekBar.max = CONTROL_RANGE
+        rateSeekBar.progress = DEFAULT_CONTROL_PROGRESS
+
+        updatePitchLabel()
+        updateRateLabel()
+
+        pitchSeekBar.setOnSeekBarChangeListener(simpleSeekBarListener {
+            updatePitchLabel()
+        })
+        rateSeekBar.setOnSeekBarChangeListener(simpleSeekBarListener {
+            updateRateLabel()
+        })
+    }
+
+    private fun simpleSeekBarListener(onChanged: () -> Unit): SeekBar.OnSeekBarChangeListener {
+        return object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                onChanged()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        }
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             ttsReady = true
             textToSpeech.setOnUtteranceProgressListener(ttsProgressListener)
-            playButton.isEnabled = true
-            exportButton.isEnabled = true
-            Toast.makeText(this, "Text-to-Speech is ready.", Toast.LENGTH_SHORT).show()
+            populateLanguages()
         } else {
             ttsReady = false
             playButton.isEnabled = false
             exportButton.isEnabled = false
+            languageSpinner.isEnabled = false
+            voiceSpinner.isEnabled = false
+            setSpinnerItems(languageSpinner, listOf("TTS unavailable"))
+            setSpinnerItems(voiceSpinner, listOf("TTS unavailable"))
+            voiceInfoText.text = "Text-to-Speech initialization failed."
             Toast.makeText(
                 this,
                 "Text-to-Speech initialization failed.",
@@ -138,16 +207,178 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun speakText() {
-        val text = validateTextAndSelectLanguage() ?: return
+    private fun populateLanguages() {
+        val locales = linkedSetOf<Locale>()
 
-        textToSpeech.setSpeechRate(1.0f)
-        textToSpeech.setPitch(1.0f)
-        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speechId")
+        try {
+            textToSpeech.availableLanguages
+                ?.filter { locale -> isLocaleUsable(locale) }
+                ?.forEach(locales::add)
+        } catch (_: Exception) {
+            // Some third-party engines do not implement availableLanguages reliably.
+        }
+
+        try {
+            textToSpeech.voices
+                ?.map { it.locale }
+                ?.filter { locale -> isLocaleUsable(locale) }
+                ?.forEach(locales::add)
+        } catch (_: Exception) {
+            // Keep any locales already discovered above.
+        }
+
+        val uniqueByTag = linkedMapOf<String, Locale>()
+        locales.forEach { locale ->
+            uniqueByTag.putIfAbsent(locale.toLanguageTag(), locale)
+        }
+
+        val collator = Collator.getInstance(Locale.getDefault())
+        languages = uniqueByTag.values
+            .map { LanguageOption(it, buildLanguageLabel(it)) }
+            .sortedWith { a, b -> collator.compare(a.label, b.label) }
+
+        if (languages.isEmpty()) {
+            languageSpinner.isEnabled = false
+            voiceSpinner.isEnabled = false
+            playButton.isEnabled = false
+            exportButton.isEnabled = false
+            setSpinnerItems(languageSpinner, listOf("No TTS languages available"))
+            setSpinnerItems(voiceSpinner, listOf("No voices available"))
+            voiceInfoText.text = "No Text-to-Speech languages are currently available."
+            return
+        }
+
+        suppressSpinnerCallbacks = true
+        setSpinnerItems(languageSpinner, languages.map { it.label })
+        languageSpinner.isEnabled = true
+
+        val savedLocale = getSavedLanguage()
+        val defaultLocale = textToSpeech.voice?.locale ?: Locale.getDefault()
+        val selectedIndex = if (savedLocale != null) {
+            findBestLanguageIndex(savedLocale)
+        } else {
+            findBestLanguageIndex(defaultLocale)
+        }
+        languageSpinner.setSelection(selectedIndex, false)
+        suppressSpinnerCallbacks = false
+
+        populateVoicesForLanguage(languages[selectedIndex].locale)
+        playButton.isEnabled = true
+        exportButton.isEnabled = true
+    }
+
+    private fun populateVoicesForLanguage(locale: Locale) {
+        val engineVoices = try {
+            textToSpeech.voices?.toList().orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val exactVoices = engineVoices
+            .filter { voice -> voice.locale.toLanguageTag() == locale.toLanguageTag() }
+            .sortedWith(compareBy<Voice>({ it.isNetworkConnectionRequired }, { -it.quality }, { it.name }))
+
+        voices = buildList {
+            add(VoiceOption(null, "Default voice for this language"))
+            exactVoices.forEachIndexed { index, voice ->
+                add(VoiceOption(voice, buildVoiceLabel(voice, index + 1)))
+            }
+        }
+
+        suppressSpinnerCallbacks = true
+        setSpinnerItems(voiceSpinner, voices.map { it.label })
+        voiceSpinner.isEnabled = true
+
+        val currentVoiceName = textToSpeech.voice?.name
+        val currentIndex = voices.indexOfFirst { it.voice?.name == currentVoiceName }
+        voiceSpinner.setSelection(if (currentIndex >= 0) currentIndex else 0, false)
+        suppressSpinnerCallbacks = false
+
+        updateVoiceInfo(voices[voiceSpinner.selectedItemPosition.coerceIn(voices.indices)])
+    }
+
+    private fun buildLanguageLabel(locale: Locale): String {
+        val displayName = locale.getDisplayName(Locale.getDefault()).ifBlank { locale.toLanguageTag() }
+        return "$displayName (${locale.toLanguageTag()})"
+    }
+
+    private fun buildVoiceLabel(voice: Voice, number: Int): String {
+        val connection = if (voice.isNetworkConnectionRequired) "Online" else "Offline"
+        val quality = qualityLabel(voice.quality)
+        return "Voice $number - $connection - $quality - ${voice.name}"
+    }
+
+    private fun updateVoiceInfo(option: VoiceOption) {
+        val voice = option.voice
+        voiceInfoText.text = if (voice == null) {
+            "Uses the TTS engine's default voice for the selected language."
+        } else {
+            val connection = if (voice.isNetworkConnectionRequired) {
+                "Requires network"
+            } else {
+                "Available offline"
+            }
+            "${qualityLabel(voice.quality)} quality - $connection - ${voice.locale.toLanguageTag()}"
+        }
+    }
+
+    private fun qualityLabel(quality: Int): String {
+        return when {
+            quality >= Voice.QUALITY_VERY_HIGH -> "Very high"
+            quality >= Voice.QUALITY_HIGH -> "High"
+            quality >= Voice.QUALITY_NORMAL -> "Normal"
+            quality >= Voice.QUALITY_LOW -> "Low"
+            else -> "Very low"
+        }
+    }
+
+    private fun findBestLanguageIndex(locale: Locale): Int {
+        val exactTag = locale.toLanguageTag()
+        val exact = languages.indexOfFirst { it.locale.toLanguageTag() == exactTag }
+        if (exact >= 0) return exact
+
+        val languageAndCountry = languages.indexOfFirst {
+            it.locale.language == locale.language && it.locale.country == locale.country
+        }
+        if (languageAndCountry >= 0) return languageAndCountry
+
+        val languageOnly = languages.indexOfFirst { it.locale.language == locale.language }
+        return if (languageOnly >= 0) languageOnly else 0
+    }
+
+    private fun saveSelectedLanguage(locale: Locale) {
+        getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+            .edit()
+            .putString(PREF_LAST_LANGUAGE_TAG, locale.toLanguageTag())
+            .apply()
+    }
+
+    private fun getSavedLanguage(): Locale? {
+        val languageTag = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+            .getString(PREF_LAST_LANGUAGE_TAG, null)
+            ?.trim()
+            .orEmpty()
+
+        if (languageTag.isBlank()) return null
+
+        return Locale.forLanguageTag(languageTag)
+            .takeIf { locale -> locale.language.isNotBlank() }
+    }
+
+    private fun isLocaleUsable(locale: Locale): Boolean {
+        return when (textToSpeech.isLanguageAvailable(locale)) {
+            TextToSpeech.LANG_MISSING_DATA, TextToSpeech.LANG_NOT_SUPPORTED -> false
+            else -> true
+        }
+    }
+
+    private fun speakText() {
+        val text = validateTextAndApplySettings() ?: return
+        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speech_${System.currentTimeMillis()}")
     }
 
     private fun chooseMp3Destination() {
-        val text = validateTextAndSelectLanguage() ?: return
+        val text = validateTextAndApplySettings() ?: return
 
         pendingExportText = text
         exportButton.isEnabled = false
@@ -164,15 +395,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        // Re-apply the selected language after returning from the document picker.
-        if (!selectCurrentLanguage()) {
+        // Re-apply all settings after returning from the document picker.
+        if (!applyCurrentTtsSettings()) {
             setExportButtonIdle()
+            tryDelete(destination)
             return
         }
 
         textToSpeech.stop()
-        textToSpeech.setSpeechRate(1.0f)
-        textToSpeech.setPitch(1.0f)
 
         val utteranceId = "mp3_export_${System.currentTimeMillis()}"
         val tempFile = File.createTempFile("tts_export_", ".wav", cacheDir)
@@ -313,7 +543,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun validateTextAndSelectLanguage(): String? {
+    private fun validateTextAndApplySettings(): String? {
         val text = editText.text.toString().trim()
 
         if (text.isEmpty()) {
@@ -335,36 +565,64 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return null
         }
 
-        if (!selectCurrentLanguage()) return null
+        if (!applyCurrentTtsSettings()) return null
         return text
     }
 
-    private fun selectCurrentLanguage(): Boolean {
-        val selectedLanguage = languages[languageSpinner.selectedItemPosition]
-        val languageName = selectedLanguage.first
-        val locale = selectedLanguage.second
+    private fun applyCurrentTtsSettings(): Boolean {
+        val languageIndex = languageSpinner.selectedItemPosition
+        if (languageIndex !in languages.indices) {
+            Toast.makeText(this, "Please select a language.", Toast.LENGTH_SHORT).show()
+            return false
+        }
 
-        val availability = textToSpeech.isLanguageAvailable(locale)
+        val selectedLanguage = languages[languageIndex]
+        val availability = textToSpeech.isLanguageAvailable(selectedLanguage.locale)
         if (
             availability == TextToSpeech.LANG_MISSING_DATA ||
             availability == TextToSpeech.LANG_NOT_SUPPORTED
         ) {
             Toast.makeText(
                 this,
-                "$languageName is not available on this device.",
+                "${selectedLanguage.label} is not available on this device.",
                 Toast.LENGTH_LONG
             ).show()
             return false
         }
 
-        val result = textToSpeech.setLanguage(locale)
+        val languageResult = textToSpeech.setLanguage(selectedLanguage.locale)
         if (
-            result == TextToSpeech.LANG_MISSING_DATA ||
-            result == TextToSpeech.LANG_NOT_SUPPORTED
+            languageResult == TextToSpeech.LANG_MISSING_DATA ||
+            languageResult == TextToSpeech.LANG_NOT_SUPPORTED
         ) {
             Toast.makeText(
                 this,
-                "$languageName could not be selected.",
+                "${selectedLanguage.label} could not be selected.",
+                Toast.LENGTH_LONG
+            ).show()
+            return false
+        }
+
+        val voiceIndex = voiceSpinner.selectedItemPosition
+        val selectedVoice = voices.getOrNull(voiceIndex)?.voice
+        if (selectedVoice != null) {
+            val voiceResult = textToSpeech.setVoice(selectedVoice)
+            if (voiceResult != TextToSpeech.SUCCESS) {
+                Toast.makeText(
+                    this,
+                    "The selected voice could not be applied. Try the default voice.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return false
+            }
+        }
+
+        val pitchResult = textToSpeech.setPitch(currentPitch())
+        val rateResult = textToSpeech.setSpeechRate(currentRate())
+        if (pitchResult != TextToSpeech.SUCCESS || rateResult != TextToSpeech.SUCCESS) {
+            Toast.makeText(
+                this,
+                "The selected pitch or speed is not supported by this TTS engine.",
                 Toast.LENGTH_LONG
             ).show()
             return false
@@ -373,10 +631,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         return true
     }
 
-    private fun failExport(
-        utteranceId: String,
-        message: String
-    ) {
+    private fun currentPitch(): Float = controlValue(pitchSeekBar.progress)
+    private fun currentRate(): Float = controlValue(rateSeekBar.progress)
+
+    private fun controlValue(progress: Int): Float {
+        return (progress + MIN_CONTROL_PERCENT) / 100f
+    }
+
+    private fun updatePitchLabel() {
+        pitchValueText.text = String.format(Locale.getDefault(), "%.2fx", currentPitch())
+    }
+
+    private fun updateRateLabel() {
+        rateValueText.text = String.format(Locale.getDefault(), "%.2fx", currentRate())
+    }
+
+    private fun setSpinnerItems(spinner: Spinner, items: List<String>) {
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            items
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+    }
+
+    private fun failExport(utteranceId: String, message: String) {
         val failed = synchronized(exportLock) {
             val capture = exportCapture
             if (capture?.utteranceId != utteranceId) {
@@ -408,14 +688,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         try {
             contentResolver.delete(uri, null, null)
         } catch (_: Exception) {
-            // Some document providers do not allow delete; leave the empty/partial file in place.
+            // Some document providers do not allow delete; leave the empty or partial file in place.
         }
     }
 
     private fun setExportButtonIdle() {
         if (!::exportButton.isInitialized) return
         exportButton.text = "Export to MP3"
-        exportButton.isEnabled = ttsReady
+        exportButton.isEnabled = ttsReady && languages.isNotEmpty()
     }
 
     private fun stopSpeaking() {
@@ -437,6 +717,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
+    private data class LanguageOption(
+        val locale: Locale,
+        val label: String
+    )
+
+    private data class VoiceOption(
+        val voice: Voice?,
+        val label: String
+    )
+
     private data class ExportCapture(
         val utteranceId: String,
         val destination: Uri,
@@ -446,4 +736,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         var audioFormat: Int = AudioFormat.ENCODING_INVALID,
         var channelCount: Int = 0
     )
+
+    companion object {
+        private const val PREFERENCES_NAME = "tts_preferences"
+        private const val PREF_LAST_LANGUAGE_TAG = "last_language_tag"
+        private const val MIN_CONTROL_PERCENT = 50
+        private const val MAX_CONTROL_PERCENT = 200
+        private const val CONTROL_RANGE = MAX_CONTROL_PERCENT - MIN_CONTROL_PERCENT
+        private const val DEFAULT_CONTROL_PROGRESS = 100 - MIN_CONTROL_PERCENT
+    }
 }
