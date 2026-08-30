@@ -2,7 +2,7 @@
 
 ![Android](https://img.shields.io/badge/Android-24%2B-brightgreen)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Android-blueviolet)
-![Version](https://img.shields.io/badge/version-1.1.2-blue)
+![Version](https://img.shields.io/badge/version-1.1.3-blue)
 ![License](https://img.shields.io/badge/license-See%20Dependencies-lightgrey)
 
 A lightweight Android Text-to-Speech application built with Kotlin and Android's native `TextToSpeech` API.
@@ -609,6 +609,12 @@ Possible future improvements:
 ---
 
 ## Version
+## Version 1.1.3
+
+- Keeps the Android soft keyboard hidden when the app first opens.
+- Uses the activity soft-input setting only, avoiding startup focus manipulation.
+- The keyboard still opens normally when the user taps the text box.
+
 ### v1.1.2
 
 - Keep the Android soft keyboard hidden when the app opens.
