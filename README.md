@@ -609,7 +609,12 @@ Possible future improvements:
 ---
 
 ## Version
+### v1.1.2
 
+- Keep the Android soft keyboard hidden when the app opens.
+- Prevent the text input from automatically taking keyboard focus at startup.
+- The keyboard still opens normally when the user taps the text box.
+- 
 ### v1.1.1
 
 - Remember the user's last selected language
